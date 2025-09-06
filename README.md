@@ -4,17 +4,17 @@ A simple and efficient URL shortener service built with Express, TypeScript, Mon
 
 #### 🚀 Features
 
- **URL Shortening**: Convert long URLs to short, manageable links
- **Click Tracking**: Monitor how many times each short URL has been accessed
- **High Performance**: Redis caching for improved response times
- **Multiple API Interfaces**:
-   REST API (v1 and v2)
-   tRPC for type-safe API calls
- **Base62 Encoding**: Efficient short URL generation using base62 encoding
- **Comprehensive Logging**: Winston logger with daily rotation
- **Error Handling**: Centralized error handling with correlation IDs
- **Database Indexing**: Optimized MongoDB queries with proper indexing
- **Type Safety**: Full TypeScript implementation with Zod validation
+- **URL Shortening**: Convert long URLs to short, manageable links
+- **Click Tracking**: Monitor how many times each short URL has been accessed
+- **High Performance**: Redis caching for improved response times
+- **Multiple API Interfaces**:
+  - REST API (v1 and v2)
+  - tRPC for type-safe API calls
+- **Base62 Encoding**: Efficient short URL generation using base62 encoding
+- **Comprehensive Logging**: Winston logger with daily rotation
+- **Error Handling**: Centralized error handling with correlation IDs
+- **Database Indexing**: Optimized MongoDB queries with proper indexing
+- **Type Safety**: Full TypeScript implementation with Zod validation
 
 
 ## Project Structure
