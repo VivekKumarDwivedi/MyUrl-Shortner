@@ -11,6 +11,8 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@trpc/client": "^11.5.0",
+    "@trpc/server": "^11.5.0",
     "dotenv": "^16.4.7",
     "express": "^5.1.0",
     "mongoose": "^8.18.0",
