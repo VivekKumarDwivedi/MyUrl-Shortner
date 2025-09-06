@@ -44,7 +44,7 @@ A simple and efficient URL shortener service built with Express, TypeScript, Mon
 ### 1. Clone the repository
 
 ```sh
-git clone https://github.com/<your-username>/ShortMyUrl.git <ProjectName>
+git clone https://github.com/VivekKumarDwivedi/MyUrl-Shortner.git <ProjectName>
 cd <ProjectName>
 ```
 
