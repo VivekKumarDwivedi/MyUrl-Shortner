@@ -2,7 +2,7 @@ import { publicProcedure } from "../routers/trpc/context";
 import { z } from "zod";
 import {UrlService} from "../services/url.service";
 import logger from "../config/logger.config";
-import { InternalServerError } from "../utils/errors/app.error";
+import { BadRequestError, InternalServerError, NotFoundError } from "../utils/errors/app.error";
 import { UrlRepository } from "../repositories/url.repository";
 import { CacheRepository } from "../repositories/cache.repository";
 import { Request, Response, NextFunction } from "express";
@@ -44,14 +44,23 @@ export const urlController={
 }
 
 export async function redirectUrl(req:Request, res:Response,next:NextFunction){
-    const {shortUrl}=req.params;   
-    const url=await urlService.getOriginalUrl(shortUrl); 
-   if(!url){
-         res.status(404).json({
-            success:false,
-            message:"URL not found"
-        });
+   try{
+    const {shortUrl}=req.params;
+
+    if (!shortUrl || typeof shortUrl !== 'string' || shortUrl.trim().length === 0){
+        throw new BadRequestError('Short URL parameter is required and must be valid');
     }
-    await urlService.incrementClicks(shortUrl);
-    res.redirect(url.originalUrl);
+    // Get Original Url
+
+    const url = await urlService.getOriginalUrl(shortUrl.trim());
+
+    if(!url || !url.originalUrl){
+        throw new NotFoundError('URL not found');
+    }
+    // redirect to original url
+    return res.redirect(url.originalUrl);
+    
+   }catch(error){
+    next(error);
+   }
 }
