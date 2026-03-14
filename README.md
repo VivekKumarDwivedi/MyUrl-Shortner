@@ -1,43 +1,255 @@
 # UrlShortner Service
 
-A simple and efficient URL shortener service built with Express, TypeScript, MongoDB, Redis, and tRPC.
+A high-performance, scalable URL shortener service built with Express, TypeScript, MongoDB, Redis, and tRPC. This service demonstrates modern backend architecture with comprehensive error handling, caching strategies, and multiple API interfaces.
 
 #### 🚀 Features
 
-- **URL Shortening**: Convert long URLs to short, manageable links
+- **URL Shortening**: Convert long URLs to short, manageable links using Base62 encoding
 - **Click Tracking**: Monitor how many times each short URL has been accessed
-- **High Performance**: Redis caching for improved response times
+- **High Performance**: Multi-layer caching with Redis for sub-millisecond response times
 - **Multiple API Interfaces**:
   - REST API (v1 and v2)
   - tRPC for type-safe API calls
-- **Base62 Encoding**: Efficient short URL generation using base62 encoding
-- **Comprehensive Logging**: Winston logger with daily rotation
-- **Error Handling**: Centralized error handling with correlation IDs
-- **Database Indexing**: Optimized MongoDB queries with proper indexing
+- **Base62 Encoding**: Efficient short URL generation using atomic Redis counters
+- **Comprehensive Logging**: Winston logger with daily rotation and correlation tracking
+- **Error Handling**: Centralized error handling with correlation IDs and structured logging
+- **Database Optimization**: Optimized MongoDB queries with proper indexing
 - **Type Safety**: Full TypeScript implementation with Zod validation
 
+
+## Architecture Overview
+
+This URL shortener service follows a layered architecture pattern with separation of concerns:
+
+```mermaid
+graph TB
+    Client[Client Applications] --> LB[Load Balancer]
+    LB --> API[API Gateway]
+    API --> REST[REST API v1/v2]
+    API --> TRPC[tRPC API]
+    
+    REST --> MW[Middleware Layer]
+    TRPC --> MW
+    
+    MW --> CORR[Correlation ID]
+    MW --> RL[Rate Limiting]
+    MW --> VAL[Validation]
+    MW --> ERR[Error Handling]
+    
+    MW --> CTRL[Controllers]
+    CTRL --> SVC[Services Layer]
+    SVC --> REPO[Repository Layer]
+    
+    REPO --> CACHE[(Redis Cache)]
+    REPO --> DB[(MongoDB)]
+    
+    SVC --> LOG[Winston Logger]
+    LOG --> FILES[Log Files]
+```
+
+## Advanced Workflow
+
+### URL Shortening Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API
+    participant Service
+    participant Redis
+    participant MongoDB
+    participant Logger
+    
+    Client->>API: POST /api/v1/url (originalUrl)
+    API->>API: Validate Request
+    API->>Service: createShortUrl(originalUrl)
+    Service->>Redis: INR counter (atomic)
+    Redis-->>Service: nextId
+    Service->>Service: toBase62(nextId)
+    Service->>MongoDB: create(originalUrl, shortUrl)
+    MongoDB-->>Service: Url document
+    Service->>Redis: SET url_mapping (cache)
+    Service->>Logger: log creation
+    Service-->>API: shortUrl response
+    API-->>Client: {shortUrl, fullUrl, originalUrl}
+```
+
+### URL Redirection Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API
+    participant Service
+    participant Redis
+    participant MongoDB
+    participant Logger
+    
+    Client->>API: GET /:shortUrl
+    API->>API: Validate shortUrl format
+    API->>Service: getOriginalUrl(shortUrl)
+    Service->>Redis: GET url_mapping
+    alt Cache Hit
+        Redis-->>Service: originalUrl
+    else Cache Miss
+        Service->>MongoDB: findByShortUrl(shortUrl)
+        MongoDB-->>Service: Url document
+        Service->>Redis: SET url_mapping (warm cache)
+        Service->>MongoDB: incrementClicks(shortUrl)
+    end
+    Service->>Logger: log access
+    Service-->>API: originalUrl
+    API-->>Client: 301 Redirect to originalUrl
+```
 
 ## Project Structure
 
 ```
 .
 ├── src/
-│   ├── config/           # App, DB, Redis, logger configs
-│   ├── controllers/      # Express/trpc controllers
-│   ├── dtos/             # Data transfer objects
-│   ├── middlewares/      # Express middlewares
-│   ├── models/           # Mongoose models
-│   ├── repositories/     # Data access logic (MongoDB, Redis)
-│   ├── routers/          # API and tRPC routers
-│   ├── services/         # Business logic
-│   ├── utils/            # Helpers, error classes, base62
-│   └── validators/       # Zod schemas and validation
-├── logs/                 # Rotating log files
-├── .env                  # Environment variables
-├── package.json
-├── tsconfig.json
-└── README.md
+│   ├── config/                    # Configuration Management
+│   │   ├── db.ts                 # MongoDB connection setup
+│   │   ├── index.ts              # Central config exports
+│   │   ├── logger.config.ts      # Winston logger configuration
+│   │   └── redis.ts              # Redis client setup
+│   │
+│   ├── controllers/               # Request Handlers
+│   │   ├── ping.controller.ts    # Health check controller
+│   │   └── url.controller.ts     # URL operations controller
+│   │
+│   ├── dtos/                      # Data Transfer Objects
+│   │   └── url.dto.ts            # URL-related DTOs
+│   │
+│   ├── middlewares/               # Express Middlewares
+│   │   ├── correlation.middleware.ts  # Request correlation tracking
+│   │   ├── error.middleware.ts       # Global error handling
+│   │   └── urlValidation.middleware.ts # URL validation
+│   │
+│   ├── models/                    # MongoDB Models
+│   │   └── Url.ts                # URL schema and interface
+│   │
+│   ├── repositories/              # Data Access Layer
+│   │   ├── cache.repository.ts   # Redis operations
+│   │   └── url.repository.ts     # MongoDB operations
+│   │
+│   ├── routers/                   # API Routes
+│   │   ├── trpc/                 # tRPC router setup
+│   │   │   ├── context.ts       # tRPC context
+│   │   │   ├── index.ts         # tRPC router aggregation
+│   │   │   └── url.ts           # tRPC URL procedures
+│   │   ├── v1/                   # REST API v1
+│   │   │   ├── index.router.ts  # v1 route aggregation
+│   │   │   └── ping.router.ts   # v1 health check
+│   │   └── v2/                   # REST API v2
+│   │       └── index.router.ts  # v2 route aggregation
+│   │
+│   ├── services/                  # Business Logic Layer
+│   │   └── url.service.ts        # URL business logic
+│   │
+│   ├── utils/                     # Utility Functions
+│   │   ├── base62.ts             # Base62 encoding/decoding
+│   │   ├── errors/               # Custom Error Classes
+│   │   │   └── app.error.ts     # Application-specific errors
+│   │   └── helpers/              # Helper Functions
+│   │       └── request.helpers.ts # Request utilities
+│   │
+│   ├── validators/                # Input Validation
+│   │   ├── index.ts              # Validation exports
+│   │   └── ping.validator.ts     # Ping validation schemas
+│   │
+│   └── server.ts                  # Application Entry Point
+│
+├── logs/                          # Rotating Log Files
+├── .env                          # Environment Variables
+├── .gitignore                    # Git Ignore Rules
+├── package.json                  # Dependencies & Scripts
+├── tsconfig.json                 # TypeScript Configuration
+└── README.md                     # This Documentation
 ```
+
+## Database Design & Flow
+
+### MongoDB Schema
+
+```typescript
+// URL Collection Schema
+{
+  _id: ObjectId,
+  originalUrl: string,      // The original long URL
+  shortUrl: string,        // Generated short code (unique, indexed)
+  clicks: number,          // Access counter (default: 0)
+  createdAt: Date,         // Creation timestamp
+  updatedAt: Date          // Last update timestamp
+}
+
+// Indexes for Performance
+- shortUrl: unique (for fast lookups)
+- createdAt: -1 (for sorting by creation date)
+```
+
+### Redis Data Structure
+
+```
+# Counter for unique ID generation
+short_url_counter: number (atomic increment)
+
+# URL Mappings for cache
+url_mapping:{shortUrl}: originalUrl (TTL: 24 hours)
+
+# Rate limiting
+rate_limit:{ip}: count (TTL: 1 hour)
+```
+
+### Database Flow Diagram
+
+```mermaid
+graph LR
+    subgraph "Client Request"
+        A[User Action] --> B[API Request]
+    end
+    
+    subgraph "Application Layer"
+        B --> C[Validation]
+        C --> D[Business Logic]
+    end
+    
+    subgraph "Cache Layer Redis"
+        D --> E{Cache Check}
+        E -->|Hit| F[Return Cached]
+        E -->|Miss| G[Query MongoDB]
+        G --> H[Update Cache]
+    end
+    
+    subgraph "Database Layer MongoDB"
+        G --> I[Find/Create URL]
+        I --> J[Update Clicks]
+        J --> K[Return Data]
+    end
+    
+    subgraph "Response Flow"
+        F --> L[Format Response]
+        H --> L
+        K --> L
+        L --> M[HTTP Response]
+    end
+```
+
+## Performance Optimizations
+
+### Caching Strategy
+- **Read-Through Cache**: Cache miss triggers database query and cache population
+- **Write-Through Cache**: New URLs are immediately cached after database creation
+- **TTL Management**: Cache entries expire after 24 hours to ensure freshness
+
+### Database Optimizations
+- **Atomic Counters**: Redis INR for collision-free short URL generation
+- **Compound Indexes**: Optimized queries for common access patterns
+- **Connection Pooling**: Efficient database connection management
+
+### Application Optimizations
+- **Correlation Tracking**: End-to-end request tracing
+- **Rate Limiting**: Prevents abuse and ensures fair usage
+- **Structured Logging**: Efficient log aggregation and monitoring
 
 ## Getting Started
 
@@ -84,23 +296,205 @@ npm start
 
 The server will start on the port specified in `.env` (default: 7777).
 
-## API Endpoints
+## API Documentation
 
 ### REST Endpoints
 
-- `GET /:shortUrl`  
-  Redirects to the original URL.
+#### URL Management
+- `POST /api/v1/url`  
+  Create a short URL from a long URL.
+  ```json
+  // Request
+  {
+    "originalUrl": "https://example.com/very/long/url"
+  }
+  
+  // Response
+  {
+    "id": "64a7b8c9d1e2f3g4h5i6j7k8",
+    "shortUrl": "abc123",
+    "originalUrl": "https://example.com/very/long/url",
+    "fullUrl": "http://localhost:7777/abc123",
+    "createdAt": "2023-07-06T12:34:56.789Z",
+    "updatedAt": "2023-07-06T12:34:56.789Z"
+  }
+  ```
 
+- `GET /:shortUrl`  
+  Redirects to the original URL and increments click count.
+
+#### Health Checks
 - `GET /api/v1/ping`  
-  Health check endpoint.
+  Basic health check endpoint.
+  ```json
+  {
+    "status": "ok",
+    "timestamp": "2023-07-06T12:34:56.789Z",
+    "uptime": 3600.5
+  }
+  ```
 
 ### tRPC Endpoints
 
-- `POST /trpc/url.create`  
-  Shorten a URL.
+#### URL Procedures
+- `url.create`  
+  Type-safe URL shortening.
+  ```typescript
+  // Input
+  { originalUrl: string }
+  
+  // Output
+  {
+    id: string;
+    shortUrl: string;
+    originalUrl: string;
+    fullUrl: string;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+  ```
 
-- `GET /trpc/url.getOriginalUrl`  
-  Retrieve the original URL from a short URL.
+- `url.getOriginalUrl`  
+  Retrieve original URL from short code.
+  ```typescript
+  // Input
+  { shortUrl: string }
+  
+  // Output
+  {
+    originalUrl: string;
+    shortUrl: string;
+  }
+  ```
+
+## Monitoring & Observability
+
+### Logging Strategy
+The application uses structured logging with Winston:
+
+```typescript
+// Log Format
+{
+  "timestamp": "2023-07-06T12:34:56.789Z",
+  "level": "info",
+  "correlationId": "abc123-def456-ghi789",
+  "message": "URL created successfully",
+  "metadata": {
+    "shortUrl": "abc123",
+    "originalUrl": "https://example.com",
+    "processingTime": 45
+  }
+}
+```
+
+### Health Monitoring
+- **Application Health**: `/api/v1/ping` endpoint
+- **Database Connectivity**: MongoDB connection status
+- **Cache Status**: Redis connection and performance metrics
+- **Rate Limiting**: Active limits and usage statistics
+
+### Performance Metrics
+- **Response Times**: API endpoint latency tracking
+- **Cache Hit Rates**: Redis cache effectiveness
+- **Error Rates**: Application error frequency
+- **Throughput**: Requests per second monitoring
+
+## Security Considerations
+
+### Rate Limiting
+- IP-based rate limiting to prevent abuse
+- Configurable limits per endpoint
+- Redis-backed distributed rate limiting
+
+### Input Validation
+- Zod schema validation for all inputs
+- URL format validation and sanitization
+- Protection against malicious URLs
+
+### Error Handling
+- Secure error responses (no sensitive data leakage)
+- Correlation ID tracking for debugging
+- Graceful degradation on service failures
+
+## Deployment Architecture
+
+### Production Setup
+```mermaid
+graph TB
+    subgraph "Load Balancer"
+        LB[Nginx/ALB]
+    end
+    
+    subgraph "Application Servers"
+        APP1[Node.js Instance 1]
+        APP2[Node.js Instance 2]
+        APP3[Node.js Instance N]
+    end
+    
+    subgraph "Cache Layer"
+        REDIS_MASTER[(Redis Master)]
+        REDIS_SLAVE[(Redis Slave)]
+    end
+    
+    subgraph "Database Layer"
+        MONGO_PRIMARY[(MongoDB Primary)]
+        MONGO_SECONDARY[(MongoDB Secondary)]
+    end
+    
+    subgraph "Monitoring"
+        LOGS[Log Aggregation]
+        METRICS[Metrics Collection]
+    end
+    
+    LB --> APP1
+    LB --> APP2
+    LB --> APP3
+    
+    APP1 --> REDIS_MASTER
+    APP2 --> REDIS_MASTER
+    APP3 --> REDIS_MASTER
+    
+    REDIS_MASTER --> REDIS_SLAVE
+    
+    APP1 --> MONGO_PRIMARY
+    APP2 --> MONGO_PRIMARY
+    APP3 --> MONGO_PRIMARY
+    
+    MONGO_PRIMARY --> MONGO_SECONDARY
+    
+    APP1 --> LOGS
+    APP2 --> LOGS
+    APP3 --> LOGS
+    
+    APP1 --> METRICS
+    APP2 --> METRICS
+    APP3 --> METRICS
+```
+
+### Environment Configuration
+```env
+# Application
+NODE_ENV=production
+PORT=7777
+BASE_URL=https://short.ly
+
+# Database
+MONGO_URI=mongodb://mongo-cluster:27017/short_my_url
+MONGO_OPTIONS=retryWrites=true&w=majority
+
+# Cache
+REDIS_URL=redis://redis-cluster:6379
+REDIS_COUNTER_KEY=short_url_counter
+REDIS_TTL=86400
+
+# Logging
+LOG_LEVEL=info
+LOG_FILE_PATH=/var/log/urlshortner
+
+# Rate Limiting
+RATE_LIMIT_WINDOW=3600000
+RATE_LIMIT_MAX_REQUESTS=100
+```
 
 ## Technologies Used
 
