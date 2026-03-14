@@ -10,6 +10,7 @@ import { connectDB } from './config/db';
 import { createExpressMiddleware } from '@trpc/server/adapters/express';
 import { trpcRouter } from './routers/trpc';
 import { redirectUrl } from './controllers/url.controller';
+import { validateShortUrl } from './middlewares/urlValidation.middleware';
 const app = express();
 
 app.use(express.json());
@@ -24,7 +25,7 @@ app.use('/trpc', createExpressMiddleware({
     router: trpcRouter
 }));
 
-app.get('/:shortUrl',redirectUrl)
+app.get('/:shortUrl',validateShortUrl,redirectUrl)
 
 app.use('/api/v1', v1Router);
 app.use('/api/v2', v2Router); 
