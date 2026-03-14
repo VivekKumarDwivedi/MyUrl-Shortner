@@ -391,7 +391,6 @@ The application uses structured logging with Winston:
 - **Application Health**: `/api/v1/ping` endpoint
 - **Database Connectivity**: MongoDB connection status
 - **Cache Status**: Redis connection and performance metrics
-- **Rate Limiting**: Active limits and usage statistics
 
 ### Performance Metrics
 - **Response Times**: API endpoint latency tracking
@@ -400,11 +399,6 @@ The application uses structured logging with Winston:
 - **Throughput**: Requests per second monitoring
 
 ## Security Considerations
-
-### Rate Limiting
-- IP-based rate limiting to prevent abuse
-- Configurable limits per endpoint
-- Redis-backed distributed rate limiting
 
 ### Input Validation
 - Zod schema validation for all inputs
@@ -415,61 +409,6 @@ The application uses structured logging with Winston:
 - Secure error responses (no sensitive data leakage)
 - Correlation ID tracking for debugging
 - Graceful degradation on service failures
-
-## Deployment Architecture
-
-### Production Setup
-```mermaid
-graph TB
-    subgraph "Load Balancer"
-        LB[Nginx/ALB]
-    end
-    
-    subgraph "Application Servers"
-        APP1[Node.js Instance 1]
-        APP2[Node.js Instance 2]
-        APP3[Node.js Instance N]
-    end
-    
-    subgraph "Cache Layer"
-        REDIS_MASTER[(Redis Master)]
-        REDIS_SLAVE[(Redis Slave)]
-    end
-    
-    subgraph "Database Layer"
-        MONGO_PRIMARY[(MongoDB Primary)]
-        MONGO_SECONDARY[(MongoDB Secondary)]
-    end
-    
-    subgraph "Monitoring"
-        LOGS[Log Aggregation]
-        METRICS[Metrics Collection]
-    end
-    
-    LB --> APP1
-    LB --> APP2
-    LB --> APP3
-    
-    APP1 --> REDIS_MASTER
-    APP2 --> REDIS_MASTER
-    APP3 --> REDIS_MASTER
-    
-    REDIS_MASTER --> REDIS_SLAVE
-    
-    APP1 --> MONGO_PRIMARY
-    APP2 --> MONGO_PRIMARY
-    APP3 --> MONGO_PRIMARY
-    
-    MONGO_PRIMARY --> MONGO_SECONDARY
-    
-    APP1 --> LOGS
-    APP2 --> LOGS
-    APP3 --> LOGS
-    
-    APP1 --> METRICS
-    APP2 --> METRICS
-    APP3 --> METRICS
-```
 
 ### Environment Configuration
 ```env
@@ -491,9 +430,6 @@ REDIS_TTL=86400
 LOG_LEVEL=info
 LOG_FILE_PATH=/var/log/urlshortner
 
-# Rate Limiting
-RATE_LIMIT_WINDOW=3600000
-RATE_LIMIT_MAX_REQUESTS=100
 ```
 
 ## Technologies Used
