@@ -11,6 +11,7 @@ import { createExpressMiddleware } from '@trpc/server/adapters/express';
 import { trpcRouter } from './routers/trpc';
 import { redirectUrl } from './controllers/url.controller';
 import { validateShortUrl } from './middlewares/urlValidation.middleware';
+import limiter from './middlewares/rateLimiter.middleware';
 const app = express();
 
 app.use(express.json());
@@ -21,7 +22,7 @@ app.use(express.json());
 
 app.use(attachCorrelationIdMiddleware);
 
-app.use('/trpc', createExpressMiddleware({
+app.use('/trpc',limiter, createExpressMiddleware({
     router: trpcRouter
 }));
 
@@ -38,7 +39,7 @@ app.use('/api/v2', v2Router);
 app.use(appErrorHandler);
 app.use(genericErrorHandler);
 
-
+async function startServer(){
 app.listen(serverConfig.PORT, async () => {
     logger.info(`Server is running on http://localhost:${serverConfig.PORT}`);
     logger.info(`Press Ctrl+C to stop the server.`);
@@ -46,3 +47,6 @@ app.listen(serverConfig.PORT, async () => {
     await initRedis();
     await connectDB();
 });
+};
+
+startServer();
