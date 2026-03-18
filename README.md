@@ -1,8 +1,8 @@
-# UrlShortner Service
+# URL Shortener Service
 
 A high-performance, scalable URL shortener service built with Express, TypeScript, MongoDB, Redis, and tRPC. This service demonstrates modern backend architecture with comprehensive error handling, caching strategies, and multiple API interfaces.
 
-#### 🚀 Features
+## 🚀 Features
 
 - **URL Shortening**: Convert long URLs to short, manageable links using Base62 encoding
 - **Click Tracking**: Monitor how many times each short URL has been accessed
@@ -11,10 +11,12 @@ A high-performance, scalable URL shortener service built with Express, TypeScrip
   - REST API (v1 and v2)
   - tRPC for type-safe API calls
 - **Base62 Encoding**: Efficient short URL generation using atomic Redis counters
-- **Comprehensive Logging**: Winston logger with daily rotation and correlation tracking
-- **Error Handling**: Centralized error handling with correlation IDs and structured logging
+- **Rate Limiting**: Express rate limiting to prevent abuse (10 requests/minute per IP)
+- **Comprehensive Logging**: Winston logger with correlation tracking
+- **Error Handling**: Centralized error handling with correlation IDs
 - **Database Optimization**: Optimized MongoDB queries with proper indexing
 - **Type Safety**: Full TypeScript implementation with Zod validation
+- **Testing**: Comprehensive unit and integration tests with Jest
 
 
 ## Architecture Overview
@@ -23,25 +25,34 @@ This URL shortener service follows a layered architecture pattern with separatio
 
 ```mermaid
 graph TB
-    Client[Client Applications] --> LB[Load Balancer]
-    LB --> API[API Gateway]
-    API --> REST[REST API v1/v2]
-    API --> TRPC[tRPC API]
+    Client[Client Applications] --> API[Express Server]
     
-    REST --> MW[Middleware Layer]
-    TRPC --> MW
+    subgraph "API Layer"
+        API --> MW[Middleware Layer]
+        MW --> CORR[Correlation ID]
+        MW --> RL[Rate Limiting]
+        MW --> VAL[URL Validation]
+        MW --> ERR[Error Handling]
+    end
     
-    MW --> CORR[Correlation ID]
-    MW --> RL[Rate Limiting]
-    MW --> VAL[Validation]
-    MW --> ERR[Error Handling]
+    subgraph "Router Layer"
+        API --> REST[REST API v1/v2]
+        API --> TRPC[tRPC API]
+        API --> REDIRECT[/:shortUrl Redirect]
+    end
     
-    MW --> CTRL[Controllers]
-    CTRL --> SVC[Services Layer]
-    SVC --> REPO[Repository Layer]
+    subgraph "Business Logic"
+        REST --> CTRL[Controllers]
+        TRPC --> CTRL
+        REDIRECT --> CTRL
+        CTRL --> SVC[URL Service]
+    end
     
-    REPO --> CACHE[(Redis Cache)]
-    REPO --> DB[(MongoDB)]
+    subgraph "Data Layer"
+        SVC --> REPO[Repository Layer]
+        REPO --> CACHE[(Redis Cache)]
+        REPO --> DB[(MongoDB)]
+    end
     
     SVC --> LOG[Winston Logger]
     LOG --> FILES[Log Files]
@@ -109,13 +120,13 @@ sequenceDiagram
 ├── src/
 │   ├── config/                    # Configuration Management
 │   │   ├── db.ts                 # MongoDB connection setup
-│   │   ├── index.ts              # Central config exports
+│   │   ├── index.ts              # Central config exports & env loading
 │   │   ├── logger.config.ts      # Winston logger configuration
 │   │   └── redis.ts              # Redis client setup
 │   │
-│   ├── controllers/               # Request Handlers
+│   ├── controllers/               # Request Handlers & tRPC Procedures
 │   │   ├── ping.controller.ts    # Health check controller
-│   │   └── url.controller.ts     # URL operations controller
+│   │   └── url.controller.ts     # URL operations & tRPC procedures
 │   │
 │   ├── dtos/                      # Data Transfer Objects
 │   │   └── url.dto.ts            # URL-related DTOs
@@ -123,6 +134,7 @@ sequenceDiagram
 │   ├── middlewares/               # Express Middlewares
 │   │   ├── correlation.middleware.ts  # Request correlation tracking
 │   │   ├── error.middleware.ts       # Global error handling
+│   │   ├── rateLimiter.middleware.ts  # Rate limiting (10 req/min)
 │   │   └── urlValidation.middleware.ts # URL validation
 │   │
 │   ├── models/                    # MongoDB Models
@@ -157,6 +169,16 @@ sequenceDiagram
 │   │   ├── index.ts              # Validation exports
 │   │   └── ping.validator.ts     # Ping validation schemas
 │   │
+│   ├── tests/                     # Test Suite
+│   │   ├── integration/          # Integration tests
+│   │   │   ├── controllers/     # Controller integration tests
+│   │   │   └── routers/         # Router integration tests
+│   │   └── unit/                 # Unit tests
+│   │       ├── middlewares/      # Middleware unit tests
+│   │       ├── repositories/    # Repository unit tests
+│   │       ├── services/        # Service unit tests
+│   │       └── utils/           # Utility unit tests
+│   │
 │   └── server.ts                  # Application Entry Point
 │
 ├── logs/                          # Rotating Log Files
@@ -173,13 +195,12 @@ sequenceDiagram
 
 ```typescript
 // URL Collection Schema
-{
-  _id: ObjectId,
-  originalUrl: string,      // The original long URL
-  shortUrl: string,        // Generated short code (unique, indexed)
-  clicks: number,          // Access counter (default: 0)
-  createdAt: Date,         // Creation timestamp
-  updatedAt: Date          // Last update timestamp
+interface IUrl extends Document {
+  originalUrl: string;      // The original long URL
+  shortUrl: string;        // Generated short code (unique, indexed)
+  clicks: number;          // Access counter (default: 0)
+  createdAt: Date;         // Creation timestamp
+  updatedAt: Date;         // Last update timestamp
 }
 
 // Indexes for Performance
@@ -197,7 +218,15 @@ short_url_counter: number (atomic increment)
 url_mapping:{shortUrl}: originalUrl (TTL: 24 hours)
 
 # Rate limiting
-rate_limit:{ip}: count (TTL: 1 hour)
+rate_limit:{ip}: count (TTL: 1 minute)
+```
+
+### Base62 Encoding Algorithm
+
+```typescript
+// Characters: 0-9, a-z, A-Z (62 characters)
+// Example: 12345 -> '3d7'
+// Used for efficient short URL generation
 ```
 
 ### Database Flow Diagram
@@ -248,10 +277,18 @@ graph LR
 
 ### Application Optimizations
 - **Correlation Tracking**: End-to-end request tracing
-- **Rate Limiting**: Prevents abuse and ensures fair usage
+- **Rate Limiting**: 10 requests per minute per IP to prevent abuse
 - **Structured Logging**: Efficient log aggregation and monitoring
+- **Base62 Encoding**: Efficient short URL generation using 62-character alphabet
 
 ## Getting Started
+
+### Prerequisites
+
+- Node.js 18+
+- MongoDB 6.0+
+- Redis 7+
+- Docker & Docker Compose (optional)
 
 ### 1. Clone the repository
 
@@ -271,11 +308,11 @@ npm install
 Create a `.env` file in the root directory:
 
 ```env
-PORT=7777
+PORT=3001
 MONGO_URI="mongodb://localhost:27017/short_my_url"
 REDIS_URL="redis://localhost:6379"
 REDIS_COUNTER_KEY="short_url_counter"
-BASE_URL="http://localhost:7777"
+BASE_URL="http://localhost:3001"
 ```
 
 Adjust values as needed for your environment.
@@ -294,7 +331,33 @@ npm run dev
 npm start
 ```
 
-The server will start on the port specified in `.env` (default: 7777).
+The server will start on the port specified in `.env` (default: 3001).
+
+### 5. Run Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run unit tests only
+npm run test:unit
+
+# Run with coverage
+npm test -- --coverage
+```
+
+### 6. Code Quality Checks
+
+```bash
+# Lint code
+npm run lint
+
+# Fix linting issues
+npm run lint:fix
+
+# Format code
+npm run format
+```
 
 ## API Documentation
 
@@ -314,7 +377,7 @@ The server will start on the port specified in `.env` (default: 7777).
     "id": "64a7b8c9d1e2f3g4h5i6j7k8",
     "shortUrl": "abc123",
     "originalUrl": "https://example.com/very/long/url",
-    "fullUrl": "http://localhost:7777/abc123",
+    "fullUrl": "http://localhost:3001/abc123",
     "createdAt": "2023-07-06T12:34:56.789Z",
     "updatedAt": "2023-07-06T12:34:56.789Z"
   }
@@ -367,6 +430,64 @@ The server will start on the port specified in `.env` (default: 7777).
   }
   ```
 
+### Rate Limiting
+- **Endpoints**: All API endpoints are rate-limited
+- **Limit**: 10 requests per minute per IP address
+- **Response**: HTTP 429 with error message when limit exceeded
+
+## Testing Strategy
+
+### Test Structure
+
+The project follows a comprehensive testing approach with both unit and integration tests:
+
+```
+src/tests/
+├── integration/           # Integration tests
+│   ├── controllers/      # Controller integration tests
+│   └── routers/          # Router integration tests
+└── unit/                 # Unit tests
+    ├── middlewares/      # Middleware unit tests
+    ├── repositories/    # Repository unit tests
+    ├── services/        # Service unit tests
+    └── utils/           # Utility unit tests
+```
+
+### Test Categories
+
+#### Unit Tests
+- **Services**: Business logic testing with mocked dependencies
+- **Repositories**: Data access layer testing
+- **Middlewares**: Request processing and validation
+- **Utils**: Utility functions and algorithms
+
+#### Integration Tests
+- **Controllers**: End-to-end API endpoint testing
+- **Routers**: Route integration and middleware flow
+
+### Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run unit tests only
+npm run test:unit
+
+# Run tests with coverage
+npm test -- --coverage
+
+# Watch mode for development
+npm test -- --watch
+```
+
+### Test Configuration
+
+- **Framework**: Jest with TypeScript support
+- **Environment**: Node.js test environment
+- **Coverage**: Reports generated for all TypeScript files
+- **Mocking**: MongoDB Memory Server for database tests
+
 ## Monitoring & Observability
 
 ### Logging Strategy
@@ -410,11 +531,16 @@ The application uses structured logging with Winston:
 - Correlation ID tracking for debugging
 - Graceful degradation on service failures
 
+### Rate Limiting
+- 10 requests per minute per IP address
+- Prevents abuse and ensures fair usage
+- Configurable limits for different environments
+
 ### Environment Configuration
 ```env
 # Application
 NODE_ENV=production
-PORT=7777
+PORT=3001
 BASE_URL=https://short.ly
 
 # Database
@@ -429,7 +555,6 @@ REDIS_TTL=86400
 # Logging
 LOG_LEVEL=info
 LOG_FILE_PATH=/var/log/urlshortner
-
 ```
 
 ## Technologies Used
