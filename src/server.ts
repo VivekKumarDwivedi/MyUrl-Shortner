@@ -22,15 +22,18 @@ app.use(express.json());
 
 app.use(attachCorrelationIdMiddleware);
 
-app.use('/trpc',limiter, createExpressMiddleware({
-    router: trpcRouter
-}));
+app.use(
+  '/trpc',
+  limiter,
+  createExpressMiddleware({
+    router: trpcRouter,
+  }),
+);
 
-app.get('/:shortUrl',validateShortUrl,redirectUrl)
+app.get('/:shortUrl', validateShortUrl, redirectUrl);
 
 app.use('/api/v1', v1Router);
-app.use('/api/v2', v2Router); 
-
+app.use('/api/v2', v2Router);
 
 /**
  * Add the error handler middleware
@@ -39,14 +42,14 @@ app.use('/api/v2', v2Router);
 app.use(appErrorHandler);
 app.use(genericErrorHandler);
 
-async function startServer(){
-app.listen(serverConfig.PORT, async () => {
+async function startServer() {
+  app.listen(serverConfig.PORT, async () => {
     logger.info(`Server is running on http://localhost:${serverConfig.PORT}`);
     logger.info(`Press Ctrl+C to stop the server.`);
 
     await initRedis();
     await connectDB();
-});
-};
+  });
+}
 
 startServer();

@@ -8,7 +8,9 @@ jest.mock('../../../../controllers/ping.controller', () => ({
 }));
 
 jest.mock('../../../../validators', () => ({
-  validateRequestBody: () => (req: express.Request, res: express.Response, next: express.NextFunction) => next(),
+  validateRequestBody:
+    () => (req: express.Request, res: express.Response, next: express.NextFunction) =>
+      next(),
 }));
 
 jest.mock('../../../../validators/ping.validator', () => ({

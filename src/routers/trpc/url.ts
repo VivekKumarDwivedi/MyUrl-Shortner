@@ -1,4 +1,4 @@
-import {urlController} from '../../controllers/url.controller';
-import {router} from './context';
+import { urlController } from '../../controllers/url.controller';
+import { router } from './context';
 
-export const urlRouter=router(urlController);
+export const urlRouter = router(urlController);
