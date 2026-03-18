@@ -38,7 +38,7 @@ graph TB
     subgraph "Router Layer"
         API --> REST[REST API v1/v2]
         API --> TRPC[tRPC API]
-        API --> REDIRECT[/:shortUrl Redirect]
+        API --> REDIRECT[Short URL Redirect]
     end
     
     subgraph "Business Logic"
