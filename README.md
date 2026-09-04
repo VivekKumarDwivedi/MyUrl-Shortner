@@ -568,10 +568,6 @@ LOG_FILE_PATH=/var/log/urlshortner
 - [Winston](https://github.com/winstonjs/winston) (logging)
 - [Nodemon](https://nodemon.io/) (development tool)
 
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 ## Acknowledgments
 
 - Inspired by the need for a simple, efficient URL shortening service.
